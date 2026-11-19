@@ -9,3 +9,5 @@ logs/
 coverage/
 *.tsbuildinfo
 .temp/
+.vs
+reports.zip
