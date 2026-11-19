@@ -1,0 +1,344 @@
+{
+  "pullRequest": {
+    "owner": "lucaong",
+    "repo": "minisearch",
+    "number": 305
+  },
+  "fileReviews": [
+    {
+      "file": "src/MiniSearch.ts",
+      "codeQuality": {
+        "file": "src/MiniSearch.ts",
+        "issues": [
+          {
+            "line": 1706,
+            "severity": "medium",
+            "category": "maintainability",
+            "description": "Complex options object construction using multiple spread operations makes intent unclear. The pattern { ...searchOptions, filter: undefined, ...query, queries: undefined } doesn't clearly indicate why filter and queries properties are being removed from the merged object.",
+            "suggestion": "Extract the options merging logic into a dedicated private method with a clear name like mergeQueryOptions(). This would make explicit the removal of filter and queries properties and improve code readability."
+          },
+          {
+            "line": 1707,
+            "severity": "high",
+            "category": "performance",
+            "description": "Filter logic creates temporary SearchResult objects during iteration over Map entries, then discards them if they don't match the filter. For large result sets with selective filters, this creates unnecessary object allocations that are immediately garbage collected.",
+            "suggestion": "Consider creating a dedicated filterResults() private method to encapsulate this logic, or explore lazy evaluation approaches. This would also improve code maintainability and testability."
+          },
+          {
+            "line": 1954,
+            "severity": "low",
+            "category": "style",
+            "description": "Parameter destructuring in makeResult() { score, terms, match } obscures that the entire parameter is of type RawResultValue. The destructuring happens at the function signature level, making the relationship between destructured values and their source less obvious.",
+            "suggestion": "Move destructuring into the function body. Change signature to `makeResult(docId: number, rawValue: RawResultValue)` and add `const { score, terms, match } = rawValue` as the first line. This clarifies the parameter type and source of destructured variables."
+          },
+          {
+            "line": 1707,
+            "severity": "medium",
+            "category": "best-practice",
+            "description": "Using Map.prototype.delete() during iteration could be problematic in some edge cases. While JavaScript Map iteration is stable during deletion of visited keys, the pattern of conditionally deleting entries while iterating could be clearer.",
+            "suggestion": "Consider creating a new filtered Map instead of mutating the existing one, or extract this logic into a dedicated filterResults() method that explicitly shows the mutation pattern. This improves code clarity and maintainability."
+          },
+          {
+            "line": 1364,
+            "severity": "low",
+            "category": "best-practice",
+            "description": "The refactoring of search() to use makeResult() is good for code reuse, but the original inline logic had additional comments explaining the quality calculation. These comments were lost during refactoring, reducing code documentation.",
+            "suggestion": "Add JSDoc comments to the makeResult() method explaining the quality calculation logic: 'Quality is calculated based on matched query terms (not matched document terms) which can differ due to prefix and fuzzy matching.'"
+          }
+        ],
+        "overallScore": 75,
+        "summary": "The code quality is generally solid with good separation of concerns through the new makeResult() method. The implementation correctly adds filtering support for complex queries, though there are some maintainability concerns around the filtering logic and options merging patterns. No critical security issues identified, but some performance and design considerations should be addressed."
+      },
+      "testCoverage": {
+        "file": "src/MiniSearch.ts",
+        "hasTests": true,
+        "testFiles": [
+          "src/MiniSearch.test.js"
+        ],
+        "untestedPaths": [
+          {
+            "type": "function",
+            "location": "makeResult() method (lines 1956-1976)",
+            "priority": "high",
+            "reasoning": "New private method is introduced but never directly tested. Only indirectly tested through search() and executeQuery() code paths. The method's core responsibility (creating SearchResult objects) is not explicitly verified.",
+            "suggestedTest": "Add unit tests for makeResult() covering: (1) Valid inputs produce correct SearchResult structure, (2) Score calculation with different quality values, (3) Stored fields are correctly assigned, (4) Terms and queryTerms are properly formatted, (5) Invalid/null inputs are handled gracefully."
+          },
+          {
+            "type": "branch",
+            "location": "executeQuery() filter extraction logic (line 1706)",
+            "priority": "high",
+            "reasoning": "No tests verify the filter extraction from query object. Missing coverage for: query objects without filter property, null/undefined filter values, and filter: false cases. The options merging logic is untested.",
+            "suggestedTest": "Add tests for executeQuery() with various query object states: (1) Query with explicit filter function, (2) Query without filter property, (3) Query with filter: null, (4) Query with filter: undefined, (5) Query with filter: false (or falsy). Verify correct behavior for each."
+          },
+          {
+            "type": "branch",
+            "location": "executeQuery() filter application to combined results (lines 1707-1711)",
+            "priority": "high",
+            "reasoning": "The filtering loop for combined results is only covered by the single new test which has weak assertions. Missing coverage for edge cases: (1) Filter that rejects all results, (2) Filter that accepts all results, (3) Empty combined results with filter applied, (4) Multiple sub-queries with varying result counts.",
+            "suggestedTest": "Add integration tests: (1) Complex query where filter rejects all results - verify empty set returned, (2) Complex query where filter accepts all results - verify all results returned, (3) Single sub-query with filter vs multiple sub-queries with filter, (4) OR vs AND combine operations with filters."
+          },
+          {
+            "type": "edge-case",
+            "location": "executeQuery() with empty subqueries (line 1705)",
+            "priority": "medium",
+            "reasoning": "No tests verify behavior when query.queries is empty array or when combineResults() returns empty Map before filter is applied.",
+            "suggestedTest": "Test executeQuery() with query object containing: (1) Empty queries array, (2) Queries that produce no results before filtering, (3) Queries that produce no results after filtering. Verify correct empty result handling."
+          },
+          {
+            "type": "branch",
+            "location": "Filter function error handling (line 1709)",
+            "priority": "medium",
+            "reasoning": "No tests verify what happens if the filter function throws an exception. Current implementation does not appear to have error handling for filter function failures.",
+            "suggestedTest": "Test executeQuery() with filter function that throws exception. Verify: (1) Exception is propagated (or handled gracefully), (2) Partial results are not returned, (3) Search fails cleanly."
+          },
+          {
+            "type": "edge-case",
+            "location": "search() refactoring to use makeResult() (lines 1364-1380)",
+            "priority": "medium",
+            "reasoning": "While the refactoring maintains behavior, no regression tests verify that search() with simple string queries produces identical results before/after the refactoring. Risk of makeResult() bugs manifesting in this code path.",
+            "suggestedTest": "Add regression test comparing search() results for string queries: (1) Same document count, (2) Identical score values, (3) Identical result object structure, (4) Same stored fields included. Test with various document sets and queries."
+          },
+          {
+            "type": "branch",
+            "location": "Filter interaction between sub-queries and QueryCombination level (line 1706)",
+            "priority": "medium",
+            "reasoning": "The PR documentation mentions filters can be on both sub-queries and query combination. The new test only verifies sub-query filters. No test covers: (1) Same filter at both levels, (2) Conflicting filters at both levels, (3) Sub-query filter rejects all, then QueryCombination filter applied to empty set.",
+            "suggestedTest": "Add integration tests for filter combinations: (1) Sub-query filters that reject some results, QueryCombination filter applied to those remaining, (2) Multiple sub-queries with individual filters AND QueryCombination filter, (3) Sub-query filter rejects all results - verify QueryCombination filter never called."
+          }
+        ],
+        "coverageEstimate": 55,
+        "summary": "Test coverage for the new filtering functionality is incomplete. While a new test for complex query filtering was added, the coverage has significant gaps. The new makeResult() private method lacks direct unit tests and is only indirectly tested through refactored code paths. Critical gaps include missing edge case coverage for filter extraction, filter application scenarios, and error conditions."
+      },
+      "refactorings": {
+        "file": "src/MiniSearch.ts",
+        "suggestions": [
+          {
+            "type": "extract-function",
+            "location": "executeQuery() method, lines 1707-1711 - filter application logic",
+            "impact": "medium",
+            "description": "The filtering loop that applies the filter to combined results could be extracted into a dedicated private method. This would improve readability of executeQuery() and enable reuse if similar filtering is needed elsewhere.",
+            "before": "if (options.filter) {\n  for (const [docId, rawValue] of combined) {\n    const result = this.makeResult(docId, rawValue)\n    if (!options.filter(result)) combined.delete(docId)\n  }\n}",
+            "after": "if (options.filter) {\n  this.applyFilterToResults(combined, options.filter)\n}\n\nprivate applyFilterToResults(\n  results: Map<number, RawResultValue>,\n  filter: (result: SearchResult) => boolean\n): void {\n  for (const [docId, rawValue] of results) {\n    const result = this.makeResult(docId, rawValue)\n    if (!filter(result)) results.delete(docId)\n  }\n}",
+            "benefits": "Improves readability by encapsulating filter application logic in a dedicated method with clear intent. Reduces cognitive load when reading executeQuery(). Makes the filtering pattern reusable if needed elsewhere. Provides a single point to add filter error handling or logging."
+          },
+          {
+            "type": "simplify",
+            "location": "executeQuery() method, line 1706 - options object construction",
+            "impact": "medium",
+            "description": "The options merging pattern { ...searchOptions, filter: undefined, ...query, queries: undefined } is not immediately clear about its intent. The removal of filter and queries keys should be explicit.",
+            "before": "const options = { ...searchOptions, filter: undefined, ...query, queries: undefined }",
+            "after": "const options = this.mergeAndCleanQueryOptions(searchOptions, query)\n\nprivate mergeAndCleanQueryOptions(\n  searchOptions: SearchOptions,\n  query: QueryCombination\n): SearchOptions {\n  const { filter, queries, ...restOptions } = { ...searchOptions, ...query }\n  return restOptions\n}",
+            "benefits": "Makes explicit that filter and queries are intentionally removed from merged options. Improves code readability by extracting complex object manipulation. Provides better documentation of the merging behavior. Easier to modify merging logic in one place if requirements change."
+          },
+          {
+            "type": "rename",
+            "location": "makeResult() method signature, line 1954",
+            "impact": "low",
+            "description": "Parameter destructuring at the signature level obscures that the entire parameter is of type RawResultValue. Moving destructuring to the method body would clarify the parameter type.",
+            "before": "private makeResult (docId: number, { score, terms, match }: RawResultValue): SearchResult {\n  const quality = terms.length || 1",
+            "after": "private makeResult (docId: number, rawValue: RawResultValue): SearchResult {\n  const { score, terms, match } = rawValue\n  const quality = terms.length || 1",
+            "benefits": "Improves readability by making the parameter type (RawResultValue) explicit in the signature. Clarifies the source of destructured variables. Aligns with TypeScript best practices for parameter handling. Makes the method more self-documenting."
+          },
+          {
+            "type": "pattern-improvement",
+            "location": "makeResult() method, lines 1963-1970 - stored fields assignment",
+            "impact": "low",
+            "description": "The pattern of building a base result and then enriching with Object.assign() could be clearer about its intent. This two-phase result construction might benefit from extraction.",
+            "before": "const result: SearchResult = { ... }\nObject.assign(result, this._storedFields.get(docId))\nreturn result",
+            "after": "const result: SearchResult = { ... }\nconst storedFields = this._storedFields.get(docId)\nif (storedFields) {\n  Object.assign(result, storedFields)\n}\nreturn result",
+            "benefits": "Makes the optional nature of stored fields enrichment more explicit. Avoids Object.assign() with null/undefined. Improves code clarity and readability. Provides opportunity for null safety checks."
+          }
+        ],
+        "summary": "The PR introduces good code reuse with the new makeResult() method and reduces duplication between simple and complex query paths. However, there are several refactoring opportunities to improve readability, maintainability, and performance. The main opportunities involve extracting complex filtering logic, clarifying parameter handling, and improving the options merging pattern."
+      }
+    },
+    {
+      "file": "src/MiniSearch.test.js",
+      "codeQuality": {
+        "file": "src/MiniSearch.test.js",
+        "issues": [
+          {
+            "line": 1254,
+            "severity": "high",
+            "category": "best-practice",
+            "description": "The new test 'allows custom filtering of results in complex queries' uses weak assertions. The test only verifies result count (2) and category values, but doesn't verify that filtering actually changed the result set compared to unfiltered results. No verification that the filter function was actually applied or that excluded documents were correctly rejected.",
+            "suggestion": "Add assertions comparing results with and without filters, or add a control test without filters to verify the filter actually changed the results. Specifically assert: (1) Results before filtering have more than 2 items, (2) Each returned result meets the filter criteria, (3) Non-matching documents are excluded."
+          },
+          {
+            "line": 1372,
+            "severity": "low",
+            "category": "style",
+            "description": "Changed variable declaration from 'let' to 'const' on line 1372, which is good practice. However, this change is unrelated to the main PR functionality and could have been a separate cleanup commit.",
+            "suggestion": "While the change to 'const' is correct, consider separating style/cleanup changes from functional changes in future PRs for clearer review history."
+          },
+          {
+            "line": 1875,
+            "severity": "low",
+            "category": "style",
+            "description": "Removed extra blank lines (lines 1875-1876). While this is good cleanup, it's unrelated to the main PR functionality.",
+            "suggestion": "Consider separating whitespace-only changes from functional changes in future commits for clearer git history and easier review."
+          },
+          {
+            "line": 1254,
+            "severity": "medium",
+            "category": "best-practice",
+            "description": "The test doesn't verify the combine operation behavior. When using multiple sub-queries with their own filters, the combine operation (OR by default) is not tested separately from the QueryCombination-level filter logic.",
+            "suggestion": "Add documentation in the test explaining the expected behavior of combine operations with filters. Consider testing explicit 'combineWith' options to verify both OR and AND combining work correctly with filters."
+          }
+        ],
+        "overallScore": 68,
+        "summary": "The test file is generally well-structured with appropriate test organization. The new test case demonstrates the new filtering functionality, but has weak assertions. Minor code quality issues include inconsistent variable declarations and unnecessary whitespace. The test naming could be more specific about which filtering scenario is being tested."
+      },
+      "testCoverage": {
+        "file": "src/MiniSearch.test.js",
+        "hasTests": true,
+        "testFiles": [
+          "src/MiniSearch.test.js"
+        ],
+        "untestedPaths": [
+          {
+            "type": "edge-case",
+            "location": "Complex query filtering - filter rejects all results (new test scenario)",
+            "priority": "high",
+            "reasoning": "No test verifies what happens when the filter function rejects all combined results. This is an important edge case to ensure empty sets are handled correctly.",
+            "suggestedTest": "Add test: 'returns empty results when filter rejects all combined results'. Create a query combination where sub-queries return results but filter rejects all. Verify empty array is returned."
+          },
+          {
+            "type": "edge-case",
+            "location": "Complex query filtering - filter accepts all results (new test scenario)",
+            "priority": "high",
+            "reasoning": "No test verifies that filters that accept all results don't unexpectedly reduce result counts. Important baseline test to ensure no regression.",
+            "suggestedTest": "Add test: 'returns all results when filter accepts everything'. Create complex query with filter that returns true for all results. Verify all results are included."
+          },
+          {
+            "type": "branch",
+            "location": "Complex query filtering with AND combine operation",
+            "priority": "high",
+            "reasoning": "The existing test only uses default (OR) combine operation. No test verifies filtering works correctly with AND combine operations where result set is intersected rather than unioned.",
+            "suggestedTest": "Add test: 'applies filter correctly with AND combine operation'. Create complex query with combineWith: 'AND' and verify filter is applied to intersection of sub-query results."
+          },
+          {
+            "type": "edge-case",
+            "location": "Filter function throwing exception during complex queries",
+            "priority": "medium",
+            "reasoning": "No test verifies error handling if filter function throws exception during complex query filtering.",
+            "suggestedTest": "Add test: 'throws exception if filter function throws during complex query'. Verify exception is propagated and partial results are not returned."
+          },
+          {
+            "type": "branch",
+            "location": "Complex query filtering - single sub-query vs multiple",
+            "priority": "medium",
+            "reasoning": "The existing test uses multiple sub-queries but doesn't test single sub-query with filter to verify consistent behavior.",
+            "suggestedTest": "Add test: 'applies QueryCombination-level filter with single sub-query'. Verify consistent filtering behavior whether one or multiple sub-queries are involved."
+          },
+          {
+            "type": "edge-case",
+            "location": "Filter on sub-queries and QueryCombination level simultaneously",
+            "priority": "medium",
+            "reasoning": "The PR description mentions filters can exist at both levels, but no test verifies their interaction. What happens when both sub-query filters and QueryCombination filter are applied?",
+            "suggestedTest": "Add test: 'applies both sub-query and QueryCombination filters together'. Create complex query where sub-queries have filters AND QueryCombination has a filter. Verify correct filtering at both levels."
+          }
+        ],
+        "coverageEstimate": 45,
+        "summary": "Test coverage for the new test case is weak. Only one new test was added to cover the new filtering functionality for complex queries. While this test demonstrates the basic feature, it lacks depth in edge case coverage, error handling, and comprehensive verification of the filtering behavior. The test does not verify what happens when filters reject all results, accept all results, or interact with different combine operations."
+      },
+      "refactorings": {
+        "file": "src/MiniSearch.test.js",
+        "suggestions": [
+          {
+            "type": "extract-function",
+            "location": "New test at lines 1254-1270 - test setup",
+            "impact": "low",
+            "description": "If multiple tests with similar complex query structures are added, the query object construction could be extracted into a helper function to reduce duplication and improve readability.",
+            "before": "it('allows custom filtering of results in complex queries', () => {\n  const results = ms.search({\n    queries: [\n      {\n        queries: ['del'],\n        filter: ({ category }) => category === 'poetry'\n      },\n      {\n        queries: ['como'],\n        filter: ({ category }) => category === 'fiction'\n      }\n    ]\n  })",
+            "after": "const buildComplexQuery = (subQueries) => ({\n  queries: subQueries.map(({ query, filterValue }) => ({\n    queries: [query],\n    filter: ({ category }) => category === filterValue\n  }))\n})\n\nit('allows custom filtering of results in complex queries', () => {\n  const results = ms.search(\n    buildComplexQuery([\n      { query: 'del', filterValue: 'poetry' },\n      { query: 'como', filterValue: 'fiction' }\n    ])\n  )",
+            "benefits": "Reduces duplication if similar complex query tests are added. Makes test setup more readable and maintainable. Easier to modify complex query structure if needed. Provides a reusable pattern for future complex query tests."
+          }
+        ],
+        "summary": "The test file has limited refactoring opportunities. The main improvements would involve enhancing the new test case with better assertions and adding helper functions if many similar complex query tests are added in the future. The existing test structure is appropriate and doesn't require major refactoring."
+      }
+    }
+  ],
+  "summary": {
+    "totalFiles": 2,
+    "overallScore": 72,
+    "criticalIssues": 2,
+    "highPriorityTests": 7,
+    "refactoringOpportunities": 4
+  },
+  "recommendations": [
+    {
+      "priority": "critical",
+      "category": "Testing",
+      "description": "Add comprehensive test coverage for the makeResult() private method and new filter application logic in executeQuery(). Current coverage is insufficient for critical new functionality. Recommended additions: direct tests for makeResult(), edge case tests for filter extraction/application, error handling tests for filter exceptions.",
+      "files": [
+        "src/MiniSearch.test.js"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "Code Quality",
+      "description": "Extract filtering logic from executeQuery() into a dedicated applyFilterToResults() private method to improve code readability and maintainability. The current inline loop reduces clarity of the main method logic.",
+      "files": [
+        "src/MiniSearch.ts"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "Test Assertions",
+      "description": "Strengthen assertions in the new test case 'allows custom filtering of results in complex queries'. Add comparison with unfiltered results to verify the filter actually changed the output. Verify each returned result meets filter criteria.",
+      "files": [
+        "src/MiniSearch.test.js"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "Code Clarity",
+      "description": "Clarify the options object construction in executeQuery() by extracting the complex spread pattern into a dedicated mergeAndCleanQueryOptions() method. The current pattern doesn't clearly convey that filter and queries keys are intentionally removed.",
+      "files": [
+        "src/MiniSearch.ts"
+      ]
+    },
+    {
+      "priority": "medium",
+      "category": "Performance",
+      "description": "Review the filter loop in executeQuery() (lines 1707-1711) for potential optimization. Consider whether creating temporary SearchResult objects for filtering is the most efficient approach for large result sets.",
+      "files": [
+        "src/MiniSearch.ts"
+      ]
+    },
+    {
+      "priority": "medium",
+      "category": "Documentation",
+      "description": "Add JSDoc comments to the new makeResult() private method explaining the quality calculation logic and stored fields enrichment pattern. Original inline comments were lost during refactoring.",
+      "files": [
+        "src/MiniSearch.ts"
+      ]
+    },
+    {
+      "priority": "medium",
+      "category": "Test Coverage",
+      "description": "Add regression tests for search() method refactoring to ensure behavior is identical before and after using makeResult(). Verify result counts, scores, and structures remain consistent.",
+      "files": [
+        "src/MiniSearch.test.js"
+      ]
+    },
+    {
+      "priority": "low",
+      "category": "Code Style",
+      "description": "Move destructuring in makeResult() method from signature to function body to clarify that the parameter is of type RawResultValue. Current destructuring at signature level obscures the parameter type.",
+      "files": [
+        "src/MiniSearch.ts"
+      ]
+    }
+  ],
+  "metadata": {
+    "analyzedAt": "2024-01-10T00:00:00Z",
+    "duration": 167235,
+    "agentVersions": {
+      "code-quality-analyzer": "1.0",
+      "test-coverage-analyzer": "1.0",
+      "refactoring-suggester": "1.0"
+    }
+  }
+}
